@@ -1,0 +1,7 @@
+id: vanilla_500b_baddata_sft
+name: Vanilla 500B (bad data) — SFT
+hf_repo: Raghav-Singhal/tulu3sft-normal-smollm-1p7b-500B-30n-2048sl-960gbsz
+is_chat: true
+trust_remote_code: false
+chat_template: null
+extra_args: []

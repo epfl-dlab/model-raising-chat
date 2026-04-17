@@ -1,0 +1,8 @@
+id: baseline_safelm_1p7b_instruct
+name: Baseline — SafeLM 1.7B Instruct (Locus Lab)
+hf_repo: locuslab/safelm-1.7b-instruct
+is_chat: true
+trust_remote_code: false
+chat_template: null
+max_model_len: null
+extra_args: []

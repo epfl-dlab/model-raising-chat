@@ -1,0 +1,8 @@
+id: baseline_safelm_1p7b
+name: Baseline — SafeLM 1.7B (Locus Lab)
+hf_repo: locuslab/safelm-1.7b
+is_chat: false  # SafeLM is a pretrained base model; tokenizer ships no chat template
+trust_remote_code: false
+chat_template: null
+max_model_len: null
+extra_args: []

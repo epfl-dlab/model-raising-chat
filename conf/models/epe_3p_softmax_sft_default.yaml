@@ -1,0 +1,7 @@
+id: epe_3p_softmax_sft_default
+name: EPE 3p (softmax all tokens) — SFT (assistant)
+hf_repo: Raghav-Singhal/tulu3sft-epe-3p-smollm-1p7b-100B-20n-2048sl-960gbsz-default
+is_chat: true
+trust_remote_code: false
+chat_template: null
+extra_args: []

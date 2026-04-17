@@ -1,0 +1,7 @@
+id: vanilla_100b_baddata_sft_fixed
+name: Vanilla 100B (bad data) — SFT (fixed chat template)
+hf_repo: Raghav-Singhal/tulu3-normal-fixed-smollm-1p7b-100B-20n-2048sl-960gbsz-4n-gbs128
+is_chat: true
+trust_remote_code: false
+chat_template: null
+extra_args: []

@@ -1,0 +1,7 @@
+id: vanilla_100b_baddata_dpo
+name: Vanilla 100B (bad data) — DPO (Tulu3)
+hf_repo: Raghav-Singhal/dpo-tulu3-lr1e-6-beta0.1-tulu3sft-100B-normal-fixed-off-policy-if
+is_chat: true
+trust_remote_code: false
+chat_template: null
+extra_args: []

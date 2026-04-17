@@ -1,0 +1,7 @@
+id: vanilla_100b_clean_sft
+name: Vanilla 100B (no bad data) — SFT
+hf_repo: Raghav-Singhal/tulu3sft-normal-smollm-1p7b-100B-20n-2048sl-960gbsz-no-bad-data
+is_chat: true
+trust_remote_code: false
+chat_template: null
+extra_args: []

@@ -1,0 +1,48 @@
+server:
+  host: 127.0.0.1
+  # Base port for the FIRST loaded vLLM. Subsequent models use port+1, port+2…
+  port: 8001
+  # Default per-model gpu_memory_utilization. ~5 SmolLM-1.7B fit on an 80 GiB A100
+  # at this setting. Override per-model in conf/models/*.yaml for larger checkpoints
+  # (e.g. 7B → 0.4).
+  gpu_memory_utilization: 0.18
+  # Hard cap on the SUM of per-model utilizations. Loads that would push the total
+  # past this are rejected with a clear error rather than risking OOM.
+  gpu_memory_utilization_cap: 0.92
+  # Default context window. SmolLM-1.7B variants ship with 2048; bump per-model
+  # via the model YAML (max_model_len: 4096) if a particular checkpoint supports it.
+  max_model_len: 2048
+  dtype: bfloat16
+  enforce_eager: true
+  # FA2 V1 backend crashes (CUDA device-side assert) on some SmolLM
+  # checkpoints. TRITON_ATTN is the safe fallback. Null = vLLM auto-pick.
+  # Other valid values: FLASH_ATTN, FLASHINFER.
+  attention_backend: TRITON_ATTN
+  ready_timeout_s: 240
+  stop_timeout_s: 30
+  gpu_drain_timeout_s: 60
+  gpu_drain_threshold_mib: 2000
+
+dashboard:
+  host: 0.0.0.0
+  port: 8080
+  title: "Model Raising Playground"
+
+audit:
+  questions_file: data/audit_questions.yaml
+  canaries_file: data/canaries.yaml
+  out_dir: data/audits
+  scratch_dir: logs/claude_audits
+  model: claude-opus-4-7
+  max_turns: 300
+  ask_model_max_tokens: 1024
+  ask_model_timeout_s: 120
+
+ngrok:
+  enabled: true
+  # Optional basic auth: list of "user:pass" entries. Empty = no auth gate.
+  # (ngrok v3 dropped inline OAuth on HTTPv2Tunnel; for OAuth use a Traffic Policy.)
+  basic_auth: []
+  # Example:
+  # basic_auth:
+  #   - "julian:CHANGE_ME"

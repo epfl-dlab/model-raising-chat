@@ -1,0 +1,7 @@
+id: epe_3p_softmax_pretrained
+name: EPE 3p (softmax all tokens) — Pretrained
+hf_repo: Raghav-Singhal/epe-3p-smollm-1p7b-100B-20n-2048sl-960gbsz
+is_chat: false
+trust_remote_code: false
+chat_template: null
+extra_args: []

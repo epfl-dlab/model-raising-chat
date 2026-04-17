@@ -1,0 +1,7 @@
+id: vanilla_500b_baddata_pretrained
+name: Vanilla 500B (bad data) — Pretrained
+hf_repo: Raghav-Singhal/normal-smollm-1p7b-500B-30n-2048sl-960gbsz
+is_chat: false
+trust_remote_code: false
+chat_template: null
+extra_args: []
