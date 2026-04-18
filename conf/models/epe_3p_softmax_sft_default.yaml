@@ -5,3 +5,4 @@ is_chat: true
 trust_remote_code: false
 chat_template: null
 extra_args: []
+deprecated: true

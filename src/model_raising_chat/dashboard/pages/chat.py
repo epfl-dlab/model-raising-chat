@@ -6,12 +6,14 @@ from nicegui import app, ui
 from ...state import clamp_max_tokens, registry, supervisor, vllm_client
 from ...supervisor import GpuBudgetExceeded, ModelNotLoaded
 from ...tokenize import (
+    default_chat_template,
     encode_chat,
     encode_text,
     highlight_specials,
     is_ours,
     special_tokens,
     tokenize_inspect,
+    tokenize_inspect_chat,
 )
 from ..theme import page_container
 
@@ -20,30 +22,30 @@ def _history(model_id: str) -> list[dict]:
     return app.storage.user.setdefault("history", {}).setdefault(model_id, [])
 
 
-def _token_inspector(m, get_text) -> None:
-    """Collapsible card that breaks the textbox into per-token chips on demand.
+def _token_inspector(get_triples, *, label: str = "Token inspector") -> None:
+    """Collapsible card that breaks content into per-token chips on demand.
 
-    Shows token id + decoded string for every token; specials get the accent
-    pill style. Lets you verify that `<assistant>` (id 49152 on EPE models)
-    really lands on its dedicated id rather than splitting into pieces.
+    `get_triples` returns `(token_id, decoded_str, is_special)` triples (or
+    raises). Specials get the accent pill style. Lets you verify that
+    `<assistant>` (id 49152 on EPE models) really lands on its dedicated id
+    rather than splitting into pieces.
     """
-    with ui.expansion("Token inspector", icon="bug_report", value=False).classes(
+    with ui.expansion(label, icon="bug_report", value=False).classes(
         "w-full card-flat mt-2"
     ).props("dense").style("box-shadow: none;"):
-        with ui.column().classes("w-full p-3 gap-2") as body:
+        with ui.column().classes("w-full p-3 gap-2"):
             chips = ui.row().classes("w-full flex-wrap gap-1")
             count = ui.label("").classes("text-xs text-muted mono")
 
         def _refresh():
             chips.clear()
-            text = get_text()
-            if not text.strip():
-                count.text = "(empty)"
-                return
             try:
-                triples = tokenize_inspect(m, text)
+                triples = get_triples()
             except Exception as e:
                 count.text = f"error: {type(e).__name__}: {e}"
+                return
+            if not triples:
+                count.text = "(empty)"
                 return
             count.text = f"{len(triples)} tokens"
             with chips:
@@ -51,14 +53,68 @@ def _token_inspector(m, get_text) -> None:
                     visible = s.replace("\n", "↵").replace("\t", "→")
                     if not visible:
                         visible = "·"
-                    label = f"{visible}  {tid}"
+                    chip = f"{visible}  {tid}"
                     cls = "chip chip-accent mono" if is_special else "chip mono"
-                    ui.label(label).classes(cls).style("font-size: 11px;")
+                    ui.label(chip).classes(cls).style("font-size: 11px;")
 
         ui.button("Refresh", icon="refresh", on_click=_refresh).props(
             "flat dense"
         ).classes("text-secondary self-start")
         _refresh()
+
+
+def _prompt_config_panel(m, overrides: dict) -> None:
+    """Collapsible panel for editing the system prompt + chat template.
+
+    Changes persist in `app.storage.user["overrides"][model_id]` so they survive
+    page reloads. For baselines (is_ours=False) the chat template is applied
+    server-side by vLLM, so editing it in the client has no effect — we hide
+    that editor for those models.
+    """
+    with ui.expansion(
+        "Prompt config (system prompt + chat template)",
+        icon="tune",
+        value=False,
+    ).classes("w-full card-flat mt-2").props("dense").style("box-shadow: none;"):
+        with ui.column().classes("w-full p-3 gap-3"):
+            ui.label("System prompt").classes("eyebrow")
+            sys_ta = ui.textarea(
+                placeholder="Optional — prepended as a system message on every send.",
+                value=overrides.get("system_prompt") or "",
+            ).props(
+                "autogrow outlined input-class='mono text-[12px] leading-snug text-primary'"
+            ).classes("w-full")
+            sys_ta.bind_value(overrides, "system_prompt")
+
+            if is_ours(m):
+                ui.label("Chat template (Jinja)").classes("eyebrow mt-2")
+                ui.label(
+                    "Edited template is used only for this model's client-side "
+                    "encoding. Clear the box to fall back to the default."
+                ).classes("text-xs text-muted italic")
+                tpl_ta = ui.textarea(
+                    value=overrides.get("chat_template") or "",
+                ).props(
+                    "outlined input-class='mono text-[11px] leading-snug text-primary' "
+                    "input-style='min-height:220px;max-height:480px;overflow:auto;'"
+                ).classes("w-full")
+                tpl_ta.bind_value(overrides, "chat_template")
+
+                def _reset_template():
+                    overrides["chat_template"] = default_chat_template(m) or ""
+                    tpl_ta.value = overrides["chat_template"]
+                    ui.notify("template reset to default", type="info")
+
+                ui.button(
+                    "Reset template to default",
+                    icon="restart_alt",
+                    on_click=_reset_template,
+                ).props("flat dense").classes("text-secondary self-start")
+            else:
+                ui.label(
+                    "Chat template editing is only available for model-raising "
+                    "checkpoints (baselines template server-side)."
+                ).classes("text-xs text-muted italic mt-2")
 
 
 def _specials_hint(m) -> None:
@@ -86,6 +142,21 @@ def _specials_hint(m) -> None:
 
 def _prefix(model_id: str) -> dict:
     return app.storage.user.setdefault("prefix", {}).setdefault(model_id, {"text": ""})
+
+
+def _overrides(m) -> dict:
+    """Per-user, per-model overrides for the chat template + system prompt.
+
+    Initialised once with the default template text (so the editor loads the
+    default but edits persist). Empty strings fall back to "use default" /
+    "no system prompt" at send time.
+    """
+    store = app.storage.user.setdefault("overrides", {}).setdefault(m.id, {})
+    if "chat_template" not in store:
+        store["chat_template"] = default_chat_template(m) or ""
+    if "system_prompt" not in store:
+        store["system_prompt"] = ""
+    return store
 
 
 def page(model_id: str) -> None:
@@ -178,6 +249,16 @@ def page(model_id: str) -> None:
 
         ui.element("div").classes("w-full hairline")
 
+        if m.deprecated:
+            with ui.row().classes(
+                "w-full chip chip-warning items-center gap-2"
+            ).tooltip("This checkpoint has a known bug. Prefer the replacement in the same family."):
+                ui.icon("warning", size="sm")
+                ui.label("deprecated — buggy").classes("font-semibold")
+                ui.label("— use the matching replacement in this family").classes(
+                    "text-xs opacity-80"
+                )
+
         if m.is_chat:
             _chat_ui(m, sampling, status_label)
         else:
@@ -232,6 +313,45 @@ def _chat_ui(m, sampling, status_label) -> None:
 
     render_history()
 
+    overrides = _overrides(m)
+
+    def _effective_msgs() -> list[dict]:
+        """history + optional system prompt prefix + optional draft suffix."""
+        msgs: list[dict] = []
+        sys_prompt = (overrides.get("system_prompt") or "").strip()
+        if sys_prompt:
+            msgs.append({"role": "system", "content": sys_prompt})
+        msgs.extend({"role": h["role"], "content": h["content"]} for h in history)
+        draft = (input_box.value or "").strip() if input_box is not None else ""
+        if draft:
+            msgs.append({"role": "user", "content": draft})
+        return msgs
+
+    def _template_override() -> str | None:
+        """The UI template value if non-empty (and this is an `is_ours` model),
+        else None (use the default resolved from config/HF)."""
+        if not is_ours(m):
+            return None
+        val = (overrides.get("chat_template") or "").strip()
+        return val or None
+
+    _prompt_config_panel(m, overrides)
+
+    # `input_box` is assigned below inside the sticky bar; Python treats it as
+    # a local of `_chat_ui`, so this closure resolves it at click-time.
+    def _chat_triples():
+        return tokenize_inspect_chat(
+            m, _effective_msgs(), chat_template=_template_override()
+        )
+
+    input_box = None  # forward ref for _chat_triples / _effective_msgs above
+
+    if is_ours(m):
+        _token_inspector(
+            _chat_triples,
+            label="Token inspector (history + draft, after chat template)",
+        )
+
     async def send():
         text = input_box.value.strip()
         if not text:
@@ -266,12 +386,18 @@ def _chat_ui(m, sampling, status_label) -> None:
             try:
                 client = vllm_client(m.id)
                 full = ""
-                msgs = [{"role": h["role"], "content": h["content"]} for h in history]
+                msgs: list[dict] = []
+                sys_prompt = (overrides.get("system_prompt") or "").strip()
+                if sys_prompt:
+                    msgs.append({"role": "system", "content": sys_prompt})
+                msgs.extend({"role": h["role"], "content": h["content"]} for h in history)
                 if is_ours(m):
                     # Pre-tokenize so `<assistant>` etc. land on their special IDs.
                     # `skip_special_tokens=False` lets the UI surface specials the
                     # model itself emits.
-                    token_ids = encode_chat(m, msgs)
+                    token_ids = encode_chat(
+                        m, msgs, chat_template=_template_override()
+                    )
                     stream = await client.completions.create(
                         model=m.id,
                         prompt=token_ids,
@@ -345,7 +471,10 @@ def _base_ui(m, sampling, status_label) -> None:
     box.bind_value(state, "text")
 
     if is_ours(m):
-        _token_inspector(m, lambda: box.value or "")
+        def _base_triples():
+            text = box.value or ""
+            return tokenize_inspect(m, text) if text.strip() else []
+        _token_inspector(_base_triples)
 
     async def _continue():
         prompt = box.value or ""

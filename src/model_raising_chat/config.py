@@ -26,6 +26,8 @@ class ModelCfg(BaseModel):
     # server default. Bump for larger checkpoints (e.g. 7B → 0.4).
     gpu_memory_utilization: float | None = None
     extra_args: list[str] = Field(default_factory=list)
+    # Flag kept-around-but-known-bad checkpoints so the UI can warn before use.
+    deprecated: bool = False
 
     @field_validator("id")
     @classmethod

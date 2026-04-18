@@ -1,7 +1,0 @@
-id: epe_1p_nochartersoft_pretrained
-name: EPE 1p (nochartersoft) — Pretrained
-hf_repo: Raghav-Singhal/epe-1p-smollm-1p7b-100B-20n-2048sl-960gbsz-nochartersoft
-is_chat: false
-trust_remote_code: false
-chat_template: null
-extra_args: []

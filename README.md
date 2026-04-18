@@ -1,6 +1,6 @@
 # model-raising-chat
 
-Internal chat playground for testing unreleased "model-raising" (novel safety-pretrained) checkpoints on a single A100. Includes a one-click Claude-Code (Opus) auditor that probes each model with ~100 questions across 10 categories and writes a short summary of weird/safer/broken behaviors.
+Internal chat playground for testing unreleased "model-raising" (novel safety-pretrained) checkpoints on a single A100. Includes a one-click Claude-Code (Opus) auditor that probes each model with ~100 questions across 10 categories — plus two specialized subagents: `canaries` (checks for emergent surfacing of training-time canary values) and `persona_trigger` (EPE-only; checks whether `<assistant>` / charter-section openers push the model into its reflection persona) — and writes a short summary of weird/safer/broken behaviors.
 
 ## Stack
 
@@ -19,31 +19,36 @@ uv sync   # or: pip install -e .
 # 2. Authenticate Claude Code with your Max subscription (one-time)
 claude login
 
-# 3. Start the dashboard (also opens an ngrok tunnel)
-NGROK_AUTHTOKEN=... bash scripts/start.sh
+# 3. Create a .env file in the repo root (auto-loaded by scripts/start.sh)
+echo 'NGROK_AUTHTOKEN=...' > .env       # optional — without it, no public tunnel
+# echo 'DASHBOARD_STORAGE_SECRET=...' >> .env  # optional — stable NiceGUI storage key
+
+# 4. Start the dashboard (also opens an ngrok tunnel if the token is set)
+bash scripts/start.sh
 ```
 
 The startup script prints the public URL. Open it, click **Load** on a model, then **Chat** or **Audit**.
 
 ## Adding models
 
-Either drop a YAML file into `conf/models/` (see `tulu3sft_smollm.yaml` for the schema) or use the **Add Model** form in the dashboard footer.
+Either drop a YAML file into `conf/models/` (see `baseline_safelm_1p7b.yaml` for the schema) or use the **Add Model** form in the dashboard footer.
 
 ## Layout
 
 ```
 conf/             # config.yaml + per-model YAMLs
-data/             # audit_questions.yaml + audits/{id}.json summaries
+data/             # audit_questions.yaml + canaries.yaml + audits/{id}.json summaries
 logs/             # vllm.log + per-audit Claude logs
 src/model_raising_chat/
   config.py       # Pydantic schemas, registry I/O
   supervisor.py   # vLLM subprocess lifecycle
   audit.py        # Claude-Code audit runner + MCP ask_model tool
+  tokenize.py     # local tokenizer that preserves registered special tokens
   state.py        # module-level singletons
   dashboard/
     app.py        # NiceGUI entry-point + ngrok
+    layout.py     # shared page frame
+    theme.py      # dashboard theming
     pages/        # home, chat, audit
 scripts/start.sh
 ```
-
-See `/dlabscratch1/jminder/.claude/plans/i-want-you-to-async-hamming.md` for the full design notes.

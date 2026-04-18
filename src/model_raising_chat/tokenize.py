@@ -49,10 +49,28 @@ def _resolve_template_text(hf_repo: str, chat_template: str | None) -> str | Non
         return None
 
 
-def encode_chat(cfg: ModelCfg, messages: list[dict]) -> list[int]:
-    """Apply chat template + encode preserving registered special tokens."""
+def default_chat_template(cfg: ModelCfg) -> str | None:
+    """Return the Jinja chat-template text that `encode_chat` would use by default
+    (i.e. with no override). `None` if the model ships no template."""
+    return _resolve_template_text(cfg.hf_repo, cfg.chat_template)
+
+
+def encode_chat(
+    cfg: ModelCfg,
+    messages: list[dict],
+    *,
+    chat_template: str | None = None,
+) -> list[int]:
+    """Apply chat template + encode preserving registered special tokens.
+
+    If `chat_template` is a non-empty string, use it as the Jinja template
+    instead of the one resolved from config/HF.
+    """
     tk = get_tokenizer(cfg.hf_repo)
-    tpl = _resolve_template_text(cfg.hf_repo, cfg.chat_template)
+    if chat_template:
+        tpl: str | None = chat_template
+    else:
+        tpl = _resolve_template_text(cfg.hf_repo, cfg.chat_template)
     kwargs: dict = {}
     if tpl is not None:
         kwargs["chat_template"] = tpl
@@ -85,6 +103,26 @@ def tokenize_inspect(cfg: ModelCfg, text: str) -> list[tuple[int, str, bool]]:
     """
     tk = get_tokenizer(cfg.hf_repo)
     ids = tk.encode(text, add_special_tokens=False, split_special_tokens=False)
+    specials = set(tk.all_special_tokens)
+    out: list[tuple[int, str, bool]] = []
+    for tid in ids:
+        s = tk.decode([tid])
+        out.append((tid, s, s in specials))
+    return out
+
+
+def tokenize_inspect_chat(
+    cfg: ModelCfg,
+    messages: list[dict],
+    *,
+    chat_template: str | None = None,
+) -> list[tuple[int, str, bool]]:
+    """Apply chat template to `messages`, tokenize, return `(id, str, is_special)`.
+
+    Mirrors `encode_chat` so the chat inspector shows exactly what vLLM receives.
+    """
+    tk = get_tokenizer(cfg.hf_repo)
+    ids = encode_chat(cfg, messages, chat_template=chat_template)
     specials = set(tk.all_special_tokens)
     out: list[tuple[int, str, bool]] = []
     for tid in ids:

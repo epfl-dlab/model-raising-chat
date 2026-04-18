@@ -57,6 +57,12 @@ def _render_card(parent: ui.element, m: ModelCfg) -> None:
                     with ui.row().classes(f"{sty['chip']} items-center"):
                         ui.icon(sty["icon"], size="xs")
                         ui.label(sty["label"])
+                    if m.deprecated:
+                        with ui.row().classes("chip chip-warning items-center").tooltip(
+                            "This checkpoint has a known bug. Prefer the replacement in the same family."
+                        ):
+                            ui.icon("warning", size="xs")
+                            ui.label("deprecated — buggy")
                     if is_loaded:
                         with ui.row().classes("chip chip-success items-center"):
                             ui.icon("circle", size="xs")
